@@ -23,8 +23,8 @@ MANIFEST
 
 # Virtual environment
 venv/
-env/
 ENV/
+.env.example
 .env
 .env.local
 .env.development.local
@@ -61,3 +61,7 @@ secrets/
 # Temporary files
 tmp/
 temp/
+test/
+
+# Claude
+.claude/
