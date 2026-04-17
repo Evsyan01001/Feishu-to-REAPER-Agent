@@ -1,0 +1,21 @@
+==> 2026-04-16 22:32:46 <==
+# cmd: /Users/yanchaochen/miniforge3/bin/conda create --prefix /Volumes/T7/Work/Feishu_Agent_Demo/env_rag python=3.11
+# conda version: 26.1.0
++conda-forge/noarch::ca-certificates-2026.2.25-hbd8a1cb_0
++conda-forge/noarch::packaging-26.1-pyhc364b38_0
++conda-forge/noarch::pip-26.0.1-pyh8b19718_0
++conda-forge/noarch::setuptools-82.0.1-pyh332efcf_0
++conda-forge/noarch::tzdata-2025c-hc9c84f9_1
++conda-forge/noarch::wheel-0.46.3-pyhd8ed1ab_0
++conda-forge/osx-arm64::bzip2-1.0.8-hd037594_9
++conda-forge/osx-arm64::libexpat-2.7.5-hf6b4638_0
++conda-forge/osx-arm64::libffi-3.5.2-hcf2aa1b_0
++conda-forge/osx-arm64::liblzma-5.8.3-h8088a28_0
++conda-forge/osx-arm64::libsqlite-3.53.0-h1b79a29_0
++conda-forge/osx-arm64::libzlib-1.3.2-h8088a28_2
++conda-forge/osx-arm64::ncurses-6.5-h5e97a16_3
++conda-forge/osx-arm64::openssl-3.6.2-hd24854e_0
++conda-forge/osx-arm64::python-3.11.15-h8561d8f_0_cpython
++conda-forge/osx-arm64::readline-8.3-h46df422_0
++conda-forge/osx-arm64::tk-8.6.13-h010d191_3
+# update specs: ['python=3.11']

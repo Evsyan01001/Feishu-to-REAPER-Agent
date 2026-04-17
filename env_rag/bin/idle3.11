@@ -1,0 +1,5 @@
+#!/Volumes/T7/Work/Feishu_Agent_Demo/env_rag/bin/python3.11
+
+from idlelib.pyshell import main
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,50 @@
+{
+  "name": "libexpat",
+  "version": "2.7.5",
+  "build": "hf6b4638_0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/osx-arm64",
+  "subdir": "osx-arm64",
+  "fn": "libexpat-2.7.5-hf6b4638_0.conda",
+  "md5": "a32123f93e168eaa4080d87b0fb5da8a",
+  "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libexpat-2.7.5-hf6b4638_0.conda",
+  "sha256": "06780dec91dd25770c8cf01e158e1062fbf7c576b1406427475ce69a8af75b7e",
+  "depends": [
+    "__osx >=11.0"
+  ],
+  "constrains": [
+    "expat 2.7.5.*"
+  ],
+  "license": "MIT",
+  "timestamp": 1774719211000,
+  "size": 68192,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/Users/yanchaochen/miniforge3/pkgs/libexpat-2.7.5-hf6b4638_0.conda",
+  "extracted_package_dir": "/Users/yanchaochen/miniforge3/pkgs/libexpat-2.7.5-hf6b4638_0",
+  "files": [
+    "lib/libexpat.1.11.3.dylib",
+    "lib/libexpat.1.dylib"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "lib/libexpat.1.11.3.dylib",
+        "path_type": "hardlink",
+        "sha256": "07a68afa8ea4d4db2656ada2a55f444522297bcfbcdb1ca9a088ca334722cb59",
+        "size_in_bytes": 182768,
+        "sha256_in_prefix": "07a68afa8ea4d4db2656ada2a55f444522297bcfbcdb1ca9a088ca334722cb59"
+      },
+      {
+        "_path": "lib/libexpat.1.dylib",
+        "path_type": "softlink",
+        "sha256": "07a68afa8ea4d4db2656ada2a55f444522297bcfbcdb1ca9a088ca334722cb59",
+        "size_in_bytes": 182768
+      }
+    ]
+  },
+  "link": {
+    "source": "/Users/yanchaochen/miniforge3/pkgs/libexpat-2.7.5-hf6b4638_0",
+    "type": 1
+  }
+}

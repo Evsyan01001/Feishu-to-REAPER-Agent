@@ -1,0 +1,5 @@
+#!/Volumes/T7/Work/Feishu_Agent_Demo/env_rag/bin/python3.11
+import sys
+from lib2to3.main import main
+
+sys.exit(main("lib2to3.fixes"))
