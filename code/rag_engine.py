@@ -23,7 +23,7 @@ import glob
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 except ImportError:
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
@@ -612,7 +612,7 @@ class RAGEngine:
                             # 将JSON内容转换为文本
                             if isinstance(data, dict):
                                 json_text = json.dumps(data, ensure_ascii=False, indent=2)
-                                from langchain.schema import Document
+                                from langchain_core.documents import Document
                                 doc = Document(
                                     page_content=json_text,
                                     metadata={"source": file_path}
