@@ -24,6 +24,7 @@ MANIFEST
 # Virtual environment
 venv/
 ENV/
+env_rag/
 .env.example
 .env
 .env.local
