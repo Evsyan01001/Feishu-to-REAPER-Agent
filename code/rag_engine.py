@@ -43,9 +43,10 @@ except ImportError as e:
     raise e # 改成直接抛出原汁原味的错误
 
 class RAGEngine:
-    def __init__(self, data_dir: str = "data", vector_db_dir: str = "vector_db"):
-        self.data_dir = data_dir
-        self.vector_db_dir = vector_db_dir
+    def __init__(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.data_dir = os.path.join(current_dir, "..", "data")
+        self.vector_db_dir = os.path.join(current_dir, "..", "vector_db")
         self.embeddings = None
         self.vectorstore = None
         self.glossary = {}  # 音频术语表
@@ -59,7 +60,7 @@ class RAGEngine:
         self._load_parameters()  # 加载参数库
 
         # 自动初始化：如果库存在就加载，不存在就尝试构建
-        if os.path.exists(vector_db_dir) and os.listdir(vector_db_dir):
+        if os.path.exists(self.vector_db_dir) and os.listdir(self.vector_db_dir):
             self._load_vectorstore()
         else:
             print("首次运行，正在构建向量数据库...")
@@ -202,27 +203,6 @@ class RAGEngine:
                 "version": "1.0"
             }
             return self._format_result(structured_result, return_format)
-
-    def ask_question(self, query: str, k: int = 3, confidence_threshold: float = 0.65) -> dict:
-        """
-        [已弃用] 使用 search(query, k, confidence_threshold, "structured") 代替
-        输入用户问题，返回结构化答案
-        返回格式: {
-            "answer": str,          # 精简回答（<100字）
-            "confidence": float,    # 0-1置信度
-            "sources": list,       # 引用文档列表 [{"file": "...", "score": 0.8}]
-            "type": str,           # "concept"|"technique"|"troubleshooting"
-            "timestamp": str,      # 检索时间
-            "version": "1.0"       # 知识库版本
-        }
-        """
-        import warnings
-        warnings.warn(
-            "ask_question 已弃用，请使用 search(query, k, confidence_threshold, 'structured')",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.search(query, k, confidence_threshold, "structured")
 
     # --- 辅助方法 ---
     def _load_glossary(self):
