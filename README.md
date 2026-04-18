@@ -2,7 +2,6 @@
 
 一个集成飞书机器人、RAG知识库、DeepSeek API、MCP工具调用的企业级智能代理系统，专为游戏音频设计领域优化，提供专业、安全、多轮对话的AI助手服务，支持通过自然语言控制REAPER等外部工具。
 
-![系统架构](docs/architecture.png)
 
 ## ✨ 核心特性
 
@@ -296,7 +295,7 @@ Feishu_Agent_Demo/
 │   ├── prompt_engine.py        # 提示词引擎，解决DeepSeek无function calling限制
 │   ├── mcp_client.py           # MCP客户端，连接外部工具（如REAPER）
 │   ├── debug_rag.py            # RAG调试工具
-│   ├── .env                    # 环境配置文件（从.env.example复制）
+│   ├── .env                    # 环境配置文件（从README.md中获取环境参考）
 │   └── __pycache__/
 │
 ├── data/                   # 知识库文档
@@ -585,12 +584,11 @@ print(response)
 ## 📞 支持与反馈
 
 如有问题或建议，请：
-1. 查看 [Issues](https://github.com/your-repo/issues) 页面
+1. 查看 [Issues](https://github.com/Evsyan01001/Feishu-to-REAPER-Agent/issues) 页面
 2. 提交新的Issue
-3. 或通过邮件联系维护者
+3. 或通过邮件联系维护者 (yelvis491@gmail.com)
 
 ---
 
-**致谢**：感谢DeepSeek提供强大的AI模型支持，以及飞书开放平台的优秀机器人生态。
 
-*最后更新：2026年4月*
+*最后更新：2026年4月18日*
