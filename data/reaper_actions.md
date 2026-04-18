@@ -1,6 +1,6 @@
 # REAPER 远程控制指令集 (Action ID Map)
 
-> **文档说明**：本表定义了飞书 Agent 控制 REAPER 的核心 Action ID。当用户下达操作指令时，Agent 应通过此表检索对应的 ID。
+> **文档说明**：本表定义了 Agent 控制 REAPER 的核心 Action ID。当用户下达操作指令时，Agent 应通过此表检索对应的 ID。
 
 ## 1. 播放与导航 (Transport & Navigation)
 | Action ID | 功能描述 | 语义关键词 (触发词) |
