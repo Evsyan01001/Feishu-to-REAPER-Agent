@@ -122,7 +122,7 @@
 
 5. **环境配置**
    ```bash
-   cp .env.example .env
+   cp .env
    # 编辑 .env 文件，填写必要的配置
    ```
 
