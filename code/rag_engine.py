@@ -624,43 +624,6 @@ class RAGEngine:
         )
         print(f"✅ 知识库构建成功！当前索引块数量: {len(chunks)}")
 
-    def _search_legacy(self, query: str, k: int = 5) -> List[Tuple[str, float]]:
-        """
-        [已弃用] 兼容旧版 main.py 的调用接口
-        返回: (内容, 得分) 的列表
-        使用 search(query, k, 0.65, "simple") 代替
-        """
-        import warnings
-        warnings.warn(
-            "_search_legacy 已弃用，请使用 search(query, k, 0.65, 'simple')",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        # 调用新版 search，不再递归
-        result = self.search(query, k, 0.65, "simple")
-        if isinstance(result, list):
-            return result
-        return [("检索结果格式错误", 0.0)]
-
-    def query(self, query: str, k: int = 5) -> str:
-        """
-        [已弃用] 兼容旧版测试脚本的接口
-        返回字符串格式的答案
-        使用 search(query, k, 0.65, "text") 代替
-        """
-        import warnings
-        warnings.warn(
-            "query(query, k) 已弃用，请使用 search(query, k, 0.65, 'text')",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        result = self.search(query, k, 0.65, "text")
-        if isinstance(result, str):
-            return result
-        else:
-            # 如果返回的不是字符串，转换为字符串
-            return str(result)
-
 # --- 方便测试使用 ---
 if __name__ == "__main__":
     rag = RAGEngine()
