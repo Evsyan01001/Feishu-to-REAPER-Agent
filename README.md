@@ -97,7 +97,7 @@
 1. **克隆项目**
    ```bash
    git clone https://github.com/Evsyan01001/Feishu-to-REAPER-Agent
-   cd Feishu_Agent_Demo
+   cd Feishu-to-REAPER-Agent
    ```
 
 2. **进入代码目录**
