@@ -5,21 +5,14 @@
 
 ## ✨ 核心特性
 
-### 🤖 多平台支持
-- **飞书集成**：完整的飞书机器人Webhook接口，支持签名验证、消息去重
+### 🤖 平台支持
 - **CLI模式**：本地命令行交互，方便开发和测试
-- **Web服务**：Flask RESTful API，支持健康检查和状态监控
 
 ### 🧠 智能知识库（RAG）
 - **专业领域优化**：内置游戏音频设计术语表和参数库
 - **智能检索**：基于向量相似度搜索，支持置信度过滤
 - **内容清洗**：自动去除冗余信息，提取核心内容
 - **多格式支持**：TXT、MD、PDF、JSON文档自动解析
-
-### 🔒 企业级安全
-- **P0安全模块**：飞书Webhook签名验证，防重放攻击
-- **消息去重**：Redis优先，内存回退，防止重复处理
-- **会话隔离**：多用户会话管理，数据安全隔离
 
 ### 💬 智能对话
 - **多轮对话**：基于上下文的连续对话，支持历史追溯
@@ -144,20 +137,6 @@ DEEPSEEK_API_KEY=sk-your-api-key-here
 MODEL_NAME=deepseek-chat  # 或 deepseek-coder
 
 # ====================
-# 飞书应用配置（飞书集成需要）
-# ====================
-# 从 https://open.feishu.cn/ 创建应用获取
-FEISHU_APP_ID=your_feishu_app_id
-FEISHU_APP_SECRET=your_feishu_app_secret
-
-# ====================
-# 服务器配置
-# ====================
-USE_WEBHOOK=false          # true: Webhook模式, false: CLI模式
-HOST=0.0.0.0
-PORT=5000
-
-# ====================
 # RAG 配置
 # ====================
 CHUNK_SIZE=500             # 文本分块大小
@@ -280,14 +259,6 @@ python main.py
 - Webhook地址：`http://你的域名或IP:5000/webhook/feishu`
 - 健康检查：`http://localhost:5000/health`
 
-#### 4. 飞书机器人配置
-1. 在[飞书开放平台](https://open.feishu.cn/)创建应用
-2. 启用机器人能力
-3. 配置事件订阅：
-   - 请求地址：`https://你的域名/webhook/feishu`
-   - 订阅事件：`接收消息v2.0`
-4. 发布应用并添加到群组
-
 ## 📁 项目结构
 
 ```
@@ -298,15 +269,15 @@ Feishu_Agent_Demo/
 │   ├── conversation.py         # 多轮对话管理器
 │   ├── listen.lua              # REAPER端Lua脚本（需复制到REAPER脚本目录）
 │   │
-│   ├── reaper_controller/      # REAPER控制器模块
-│   │   ├── __init__.py
-│   │   ├── reaper_controller.py   # REAPER控制器主类
-│   │   ├── reaper_intent.py       # REAPER意图定义
-│   │   ├── action_mapper.py       # Action ID映射器
-│   │   ├── instruction_parser.py # 指令解析器
-│   │   └── file_communicator.py   # 文件通信器
-│   │
-│   └── __pycache__/
+│   └── reaper_controller/      # REAPER控制器模块
+│       ├── __init__.py
+│       ├── reaper_controller.py   # REAPER控制器主类
+│       ├── reaper_intent.py       # REAPER意图定义
+│       ├── action_mapper.py       # Action ID映射器
+│       ├── instruction_parser.py # 指令解析器
+│       └── file_communicator.py   # 文件通信器
+│
+│ 
 │
 ├── data/                   # 知识库文档
 │   ├── audio_glossary.json    # 音频术语表
@@ -322,9 +293,6 @@ Feishu_Agent_Demo/
 │
 ├── instructions.md         # 系统提示词配置（游戏音频设计师人设）
 ├── vector_db/              # ChromaDB向量数据库（自动生成）
-├── logs/                   # 日志目录（按日期分割）
-├── test/                   # 测试文件目录
-├── env_rag/                # Python虚拟环境（开发使用）
 ├── .env                    # 环境配置文件
 ├── .env.example            # 环境配置示例
 ├── .gitignore             # Git忽略配置
@@ -465,29 +433,20 @@ ImportError: 缺少必要依赖
 pip install langchain chromadb sentence-transformers pypdf
 ```
 
-#### 2. 飞书签名验证失败
-```
-[P0] 签名验证失败：签名不匹配
-```
-**检查**：
-- `.env`中的`FEISHU_APP_SECRET`是否正确
-- 飞书控制台的事件订阅URL是否配置正确
-- 服务器时间是否同步
-
-#### 3. 消息重复回复
+#### 2. 消息重复回复
 **原因**：消息去重未生效
 **解决方案**：
 - 检查Redis连接（如果使用Redis）
 - 调整`DEDUP_TTL`值（默认60秒）
 
-#### 4. 对话上下文丢失
+#### 3. 对话上下文丢失
 **原因**：会话超时或Redis连接问题
 **解决方案**：
 - 检查Redis服务状态
 - 调整`CONV_IDLE_TIMEOUT`值
 - 检查`.env`中的Redis配置
 
-#### 5. REAPER 指令无响应
+#### 4. REAPER 指令无响应
 **原因**：通信文件路径不正确或REAPER脚本未运行
 **解决方案**：
 - 检查 `listen.lua` 是否已在 REAPER 中加载并运行
@@ -495,7 +454,7 @@ pip install langchain chromadb sentence-transformers pypdf
 - 确认 `ENABLE_REAPER_CONTROLLER=true` 已设置
 - 检查 REAPER 控制台是否有错误信息
 
-#### 6. REAPER Action 执行失败
+#### 7. REAPER Action 执行失败
 **原因**：Action ID 不正确或 REAPER 版本不兼容
 **解决方案**：
 - 查看 `data/reaper_actions.md` 确认正确的 Action ID
@@ -503,10 +462,6 @@ pip install langchain chromadb sentence-transformers pypdf
 - 尝试在 REAPER 手动执行该 Action 验证是否有效
 - 使用 "播放"、"暂停" 等基础指令测试功能完整性
 
-### 日志查看
-日志文件位于`logs/`目录，按日期分割：
-- `feishu_agent_YYYY-MM-DD.log` - 应用日志
-- 日志级别：INFO, WARNING, ERROR
 
 ## 🧪 测试与开发
 
@@ -520,11 +475,6 @@ python -c "from rag_engine import RAGEngine; rag = RAGEngine(); print(rag.search
 # 在代码中添加调试日志
 import logging
 logging.basicConfig(level=logging.DEBUG)
-```
-
-### 单元测试
-```bash
-pytest test_*.py
 ```
 
 ### 测试 REAPER 控制器

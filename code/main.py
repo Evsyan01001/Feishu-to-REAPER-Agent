@@ -1,10 +1,7 @@
 """
 Feishu Agent 主程序
-集成：飞书机器人 · RAG 知识库 · DeepSeek API · P0 安全 · 多轮对话
+集成：飞书机器人 · RAG 知识库 · DeepSeek API · 多轮对话管理 · REAPER控制器
 
-改动标注：
-  # [P0]   — 签名验证 / 消息去重
-  # [CONV] — 多轮对话上下文
 """
 import os
 import json
