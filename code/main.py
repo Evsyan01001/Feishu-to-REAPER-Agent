@@ -12,6 +12,7 @@ import logging
 import types
 from typing import Dict, Any, Optional, Generator
 from dotenv import load_dotenv
+import requests
 
 load_dotenv()
 
@@ -52,14 +53,6 @@ logger = logging.getLogger(__name__)
 # warnings.filterwarnings("ignore") 
 # os.environ['TRANSFORMERS_OFFLINE'] = '1'
 # os.environ['HF_HUB_OFFLINE'] = '1'
-
-try:
-    import requests
-    from flask import Flask, request, jsonify
-    HAS_FLASK = True
-except ImportError:
-    HAS_FLASK = False
-    logger.warning("缺少 Flask 依赖，请运行：pip install flask requests")
 
 try:
     from rag_engine import RAGEngine
