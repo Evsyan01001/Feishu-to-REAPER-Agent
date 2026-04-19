@@ -9,10 +9,37 @@ Feishu Agent 主程序
 import os
 import json
 import logging
-from typing import Dict, Any, Optional
+import types
+from typing import Dict, Any, Optional, Generator
 from dotenv import load_dotenv
 
 load_dotenv()
+
+class PromptManager:
+    def __init__(self, file_path="instructions.md"):
+        self.file_path = os.path.join(os.path.dirname(__file__), "..", file_path)
+        # 初始化时直接一个最基础的，不读文件，确保启动最快
+        self._cached_prompt = "你是一个专业的游戏音频设计师。"
+        self._has_loaded = False
+
+    def get_prompt(self):
+        """获取当前提示词（默认从内存读）"""
+        return self._cached_prompt
+
+    def reload(self):
+        """主动触发更新：只有调用这个方法，才会去读硬盘"""
+        if os.path.exists(self.file_path):
+            try:
+                with open(self.file_path, "r", encoding="utf-8") as f:
+                    self._cached_prompt = f.read().strip()
+                    self._has_loaded = True
+                print("🔄 [System] 指令文件已手动同步到内存")
+                return True
+            except Exception as e:
+                print(f"❌ 同步失败: {e}")
+        return False
+
+prompt_manager = PromptManager()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,8 +68,6 @@ except ImportError as e:
     HAS_RAG = False
     logger.error(f"无法导入 RAG 引擎：{e}")
 
-# [P0]   安全模块
-from security import FeishuSignatureVerifier, MessageDeduplicator
 # [CONV] 多轮对话模块
 from conversation import ConversationManager
 
@@ -57,14 +82,14 @@ class DeepSeekAPI:
         self.base_url = "https://api.deepseek.com/v1"
         self.model    = os.getenv("MODEL_NAME", "deepseek-chat")
 
-    def chat_completion(
+    def chat_completion_stream(
         self,
         messages: list,
         temperature: float = 0.7,
         max_tokens: int = 2000,
-    ) -> Optional[str]:
+    ) -> Generator[str, None, None]:
         if not self.api_key:
-            logger.error("DeepSeek API 密钥未设置")
+            print("DeepSeek API 密钥未设置")
             return None
 
         headers = {
@@ -76,18 +101,40 @@ class DeepSeekAPI:
             "messages":    messages,
             "temperature": temperature,
             "max_tokens":  max_tokens,
+            "stream":       True,
         }
         try:
             response = requests.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=data,
+                stream=True,
                 timeout=30,
             )
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+
+            for line in response.iter_lines():
+                if not line:
+                    continue
+
+                # 移除 'data: ' 前缀
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    line = line[6:]
+
+                # 检查是否结束
+                if line == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(line)
+                    delta = chunk["choices"][0].get("delta", {})
+                    if "content" in delta:
+                        yield delta["content"]
+                except json.JSONDecodeError:
+                    continue
+
         except Exception as e:
-            logger.error(f"DeepSeek API 调用失败：{e}")
+            logger.error(f"DeepSeek API 流式调用失败：{e}")
             return None
 
 
@@ -98,11 +145,7 @@ class DeepSeekAPI:
 # 特殊指令：用户可发送这些文本主动重置会话
 RESET_COMMANDS = {"/reset", "/新对话", "/清除记忆", "重置对话"}
 
-SYSTEM_PROMPT = """你是游戏音频设计师，仅基于提供的参考资料回答问题。
-如果参考资料足够，提取关键信息直接回答，不要添加"根据参考资料"等废话。
-如果资料不足，明确说"参考资料中未找到相关信息，建议查阅[具体手册]"。
-回答格式：1-2句核心答案 + 可选的关键参数/设置建议。保持简洁专业。
-你能记住本次对话中用户之前问过的问题，可以自然地引用上下文。"""
+SYSTEM_PROMPT = prompt_manager.get_prompt()
 
 
 class FeishuAgent:
@@ -111,6 +154,7 @@ class FeishuAgent:
         self.app_secret = os.getenv("FEISHU_APP_SECRET")
         self.rag        = None
         self.deepseek   = None
+        self.reaper_controller = True  # REAPER控制器
 
         # [CONV] 多轮对话管理器
         self.conv_manager = ConversationManager(
@@ -137,6 +181,72 @@ class FeishuAgent:
         else:
             logger.warning("DeepSeek API 密钥未设置，部分功能受限")
 
+        # 初始化REAPER控制器
+        self._init_reaper_controller()
+
+    # ── REAPER控制器相关方法 ──────────────────────────────────────────────────
+
+    def _init_reaper_controller(self):
+        """初始化REAPER控制器"""
+        # 检查是否启用REAPER控制器
+        enable_reaper = os.getenv("ENABLE_REAPER_CONTROLLER", "false").lower() == "true"
+        if not enable_reaper:
+            logger.info("REAPER控制器未启用（设置ENABLE_REAPER_CONTROLLER=true启用）")
+            return
+
+        try:
+            from reaper_controller import ReaperController
+            self.reaper_controller = ReaperController()
+            logger.info("REAPER控制器初始化成功")
+        except ImportError as e:
+            logger.warning(f"REAPER控制器导入失败: {e}")
+        except Exception as e:
+            logger.error(f"REAPER控制器初始化失败: {e}")
+
+    def _try_process_reaper_command(self, user_input: str) -> Optional[Dict[str, Any]]:
+        """尝试处理REAPER指令"""
+        if not self.reaper_controller:
+            return None
+
+        # 使用REAPER控制器的指令解析器检测是否为REAPER指令
+        try:
+            if not self.reaper_controller.parser.is_reaper_command(user_input):
+                return None
+        except AttributeError:
+            # 如果parser不存在，回退到简单关键词检测
+            reaper_keywords = ["播放", "暂停", "录音", "轨道", "音量", "导出", "剪切", "复制", "粘贴"]
+            if not any(keyword in user_input for keyword in reaper_keywords):
+                return None
+
+        # 调用REAPER控制器处理
+        return self.reaper_controller.process_command(user_input)
+
+    def _build_reaper_response(self, reaper_result: Dict[str, Any], session) -> Dict[str, Any]:
+        """构建REAPER指令响应"""
+        success = reaper_result.get("success", False)
+
+        if success:
+            answer = f"✅ {reaper_result.get('message', '指令已执行')}"
+        else:
+            error_msg = reaper_result.get("error", "未知错误")
+            suggestion = reaper_result.get("suggestion", "")
+            answer = f"❌ REAPER指令处理失败: {error_msg}"
+            if suggestion:
+                answer += f"\n\n建议: {suggestion}"
+
+        return {
+            "success": success,
+            "answer": answer,
+            "source": "reaper_controller",
+            "has_context": False,
+            "rag_confidence": 0.0,
+            "rag_sources": [],
+            "rag_type": "system",
+            "turn_count": session.turn_count,
+            "reaper_command": reaper_result.get("command"),
+            "reaper_intent": reaper_result.get("intent", {})
+        }
+
     # ── 核心：处理用户消息 ────────────────────────────────────────────────────
 
     def process_message(
@@ -145,6 +255,16 @@ class FeishuAgent:
         user_id: str = "cli_user",   # [CONV] 必须传入，用于会话隔离
     ) -> Dict[str, Any]:
         logger.info(f"处理消息：user_id={user_id}，内容={user_message!r}")
+
+        if user_message.strip() == "/update_prompt":
+            if prompt_manager.reload():
+                # 同步更新全局变量（可选，为了双重保险）
+                global SYSTEM_PROMPT
+                SYSTEM_PROMPT = prompt_manager.get_prompt()
+                return {"answer": "✅ 系统指令已刷新！现在我已加载最新的 instructions.md 逻辑。", "source": "System"}
+            else:
+                return {"answer": "❌ 刷新失败，请检查 instructions.md 是否存在。", "source": "System"}
+            
 
         # ── [CONV-1] 检查重置指令 ────────────────────────────────────────────
         if user_message.strip() in RESET_COMMANDS:
@@ -178,6 +298,15 @@ class FeishuAgent:
             except Exception as e:
                 logger.error(f"RAG 检索失败：{e}")
 
+        current_system_prompt = prompt_manager.get_prompt()
+        messages = [{"role": "system", "content": prompt_manager.get_prompt()}] # 动态获取
+
+        # ── REAPER指令处理 ──────────────────────────────────────────────────────
+        reaper_result = self._try_process_reaper_command(user_message)
+        if reaper_result and reaper_result.get("success"):
+            # 如果是REAPER指令，直接返回结果，不调用AI
+            return self._build_reaper_response(reaper_result, session)
+
         # ── [CONV-3] 构建 messages（system + 历史 + 当轮 RAG 注入）────────────
         #
         # 结构：
@@ -199,8 +328,9 @@ class FeishuAgent:
         )
         current_user_content = f"用户问题：{user_message}{rag_block}\n\n请用中文回答："
 
+        # --- 这里统一使用 prompt_manager.get_prompt() ---
         api_messages = (
-            [{"role": "system", "content": SYSTEM_PROMPT}]
+            [{"role": "system", "content": prompt_manager.get_prompt()}]
             + past_messages
             + [{"role": "user", "content": current_user_content}]
         )
@@ -208,25 +338,20 @@ class FeishuAgent:
         # ── 调用 DeepSeek ─────────────────────────────────────────────────────
         answer = None
         if self.deepseek:
-            answer = self.deepseek.chat_completion(api_messages)
+            answer = self.deepseek.chat_completion_stream(api_messages)
 
         # ── [CONV-4] 将 AI 回复写回会话并保存 ──────────────────────────────────
         if answer:
-            session.add_assistant_message(answer)
-            self.conv_manager.save(session)
-            logger.info(
-                f"[CONV] 会话已保存：user_id={user_id}，"
-                f"共 {session.turn_count} 轮，{len(session.messages)} 条消息"
-            )
             return {
                 "success":        True,
                 "answer":         answer,
+                "is_stream":      True,  # [CONV] 供前端区分是否流式响应
+                "session":         session,  # [CONV] 供前端在流式过程中更新会话状态    
                 "has_context":    bool(context),
                 "rag_confidence": rag_result.get("confidence", 0) if rag_result else 0,
                 "rag_sources":    rag_result.get("sources",    []) if rag_result else [],
                 "rag_type":       rag_result.get("type",  "unknown") if rag_result else "unknown",
                 "source":         "deepseek_rag" if context else "deepseek_only",
-                "turn_count":     session.turn_count,   # [CONV] 供调试使用
             }
 
         # ── 降级回复 ──────────────────────────────────────────────────────────
@@ -247,155 +372,6 @@ class FeishuAgent:
             "turn_count":     session.turn_count,
         }
 
-    # ── 飞书 API ───────────────────────────────────────────────────────────────
-
-    def get_tenant_access_token(self) -> Optional[str]:
-        if not self.app_id or not self.app_secret:
-            logger.error("飞书 App ID 或 Secret 未设置")
-            return None
-        url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
-        try:
-            response = requests.post(
-                url,
-                headers={"Content-Type": "application/json"},
-                json={"app_id": self.app_id, "app_secret": self.app_secret},
-                timeout=10,
-            )
-            response.raise_for_status()
-            result = response.json()
-            if result.get("code") == 0:
-                return result["tenant_access_token"]
-            logger.error(f"获取访问令牌失败：{result}")
-        except Exception as e:
-            logger.error(f"获取访问令牌时出错：{e}")
-        return None
-
-    def reply_to_feishu(self, message_id: str, content: str, token: str = None) -> bool:
-        if not token:
-            token = self.get_tenant_access_token()
-        if not token:
-            return False
-        url = f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}/reply"
-        try:
-            response = requests.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "content":  json.dumps({"text": content}),
-                    "msg_type": "text",
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
-            result = response.json()
-            if result.get("code") == 0:
-                logger.info("成功回复飞书消息")
-                return True
-            logger.error(f"回复飞书消息失败：{result}")
-        except Exception as e:
-            logger.error(f"回复飞书消息时出错：{e}")
-        return False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Flask Webhook
-# ─────────────────────────────────────────────────────────────────────────────
-
-if HAS_FLASK:
-    app = Flask(__name__)
-
-    _verifier: Optional[FeishuSignatureVerifier] = None
-    _dedup:    Optional[MessageDeduplicator]     = None
-
-    def get_verifier() -> Optional[FeishuSignatureVerifier]:
-        global _verifier
-        if _verifier is None:
-            secret = os.getenv("FEISHU_APP_SECRET")
-            if secret:
-                _verifier = FeishuSignatureVerifier(secret)
-            else:
-                logger.error("[P0] FEISHU_APP_SECRET 未设置，签名验证已禁用！")
-        return _verifier
-
-    def get_dedup() -> MessageDeduplicator:
-        global _dedup
-        if _dedup is None:
-            _dedup = MessageDeduplicator(
-                ttl=int(os.getenv("DEDUP_TTL", 60)),
-                max_memory_size=int(os.getenv("DEDUP_MAX_MEMORY", 2000)),
-            )
-        return _dedup
-
-    @app.route('/webhook/feishu', methods=['POST'])
-    def feishu_webhook():
-        try:
-            raw_body = request.get_data()
-
-            # [P0] 签名验证
-            verifier = get_verifier()
-            if verifier:
-                valid, reason = verifier.verify(
-                    request.headers.get("X-Lark-Request-Timestamp", ""),
-                    request.headers.get("X-Lark-Request-Nonce",     ""),
-                    raw_body,
-                    request.headers.get("X-Lark-Signature",         ""),
-                )
-                if not valid:
-                    logger.warning(f"[P0] 签名验证失败：{reason} | IP={request.remote_addr}")
-                    return jsonify({"code": 0}), 200
-
-            data = request.json
-            if not data:
-                return jsonify({"code": 1, "msg": "invalid json"}), 400
-
-            logger.info(f"收到飞书 webhook：{json.dumps(data, ensure_ascii=False)}")
-
-            if data.get("type") == "url_verification":
-                return jsonify({"challenge": data.get("challenge")})
-
-            if data.get("type") == "event_callback":
-                event        = data.get("event", {})
-                if event.get("type") == "message":
-                    message_id   = event.get("message_id")
-                    user_message = event.get("text", "").strip()
-                    user_id      = event.get("sender", {}).get("user_id")
-
-                    # [P0] 消息去重
-                    if get_dedup().is_duplicate(message_id):
-                        logger.info(f"[P0] 重复消息已忽略：message_id={message_id}")
-                        return jsonify({"code": 0}), 200
-
-                    if user_message and user_id:
-                        # [CONV] user_id 传入，实现会话隔离
-                        result = agent.process_message(user_message, user_id)
-                        if message_id and result.get("success"):
-                            agent.reply_to_feishu(message_id, result["answer"])
-
-                return jsonify({"code": 0, "msg": "success"})
-
-            return jsonify({"code": 1, "msg": "unsupported event type"})
-
-        except Exception as e:
-            logger.error(f"处理 webhook 时出错：{e}")
-            return jsonify({"code": 500, "msg": "internal server error"}), 500
-
-    @app.route('/health', methods=['GET'])
-    def health_check():
-        return jsonify({
-            "status":  "healthy",
-            "service": "feishu_agent",
-            "dedup":   get_dedup().stats(),
-            "conv":    agent.conv_manager.stats(),          # [CONV]
-            "signature_verification": get_verifier() is not None,
-        })
-
-else:
-    app = None
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 命令行模式（支持多轮对话）
 # ─────────────────────────────────────────────────────────────────────────────
@@ -412,19 +388,40 @@ def cli_mode():
         try:
             print("\n请输入问题（输入 'quit' 退出）：")
             user_input = input("> ").strip()
-
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print("再见！")
-                break
-            if not user_input:
-                continue
+            if user_input.lower() in ['quit', 'exit', 'q']: break
+            if not user_input: continue
 
             result = agent.process_message(user_input, cli_user_id)
 
             print("\n" + "─" * 55)
-            print(result["answer"])
+
+            # 判断是否为流式结果
+            if isinstance(result.get("answer"), (Generator, types.GeneratorType)):
+                print("AI 回复：", end="", flush=True)
+                full_answer = []
+
+                # 1. 真正的流式迭代发生在这里
+                for chunk in result["answer"]:
+                    print(chunk, end="", flush=True)
+                    full_answer.append(chunk)
+                print()  # 输出完成后换行
+                
+                # 2. 迭代完成后，合并成完整字符串
+                final_answer = "".join(full_answer)
+
+                # 3. 更新 session 并保存，这会触发 turn_count += 1
+                curr_session = result["session"]
+                curr_session.add_assistant_message(final_answer)
+                agent.conv_manager.save(curr_session)
+
+                # 4. 获取最新的轮次
+                actual_turns = curr_session.turn_count
+            else:
+                print(result["answer"])
+                actual_turns = result.get("turn_count", 0)
+
             print(f"\n来源：{result['source']}  |  "
-                  f"对话轮次：{result.get('turn_count', 0)}  |  "
+                  f"对话轮次：{actual_turns}  |  "
                   f"RAG 置信度：{result.get('rag_confidence', 0):.2f}")
             if result.get("has_context"):
                 print("✓ 使用了知识库信息")
@@ -438,28 +435,6 @@ def cli_mode():
 
 
 if __name__ == "__main__":
-    # 选择使用基础 Agent 还是工具感知 Agent
-    use_tool_agent = os.getenv("USE_TOOL_AGENT", "false").lower() == "true"
-    if use_tool_agent:
-        try:
-            from tool_agent import get_tool_aware_agent
-            agent = get_tool_aware_agent()
-            print("✅ 使用工具感知 Agent（工具功能已启用）")
-        except ImportError as e:
-            print(f"⚠️  无法导入工具感知 Agent，回退到基础 Agent: {e}")
-            agent = FeishuAgent()
-    else:
-        agent = FeishuAgent()
-        print("ℹ️  使用基础 Agent")
-
-    use_webhook = os.getenv("USE_WEBHOOK", "false").lower() == "true"
-
-    if use_webhook and HAS_FLASK:
-        print("启动 Feishu Agent Webhook 服务器（P0 安全 + 多轮对话已启用）...")
-        app.run(
-            host=os.getenv("HOST", "0.0.0.0"),
-            port=int(os.getenv("PORT", 5000)),
-            debug=False,
-        )
-    else:
-        cli_mode()
+    agent = FeishuAgent()
+    print("ℹ️  使用基础 Agent")
+    cli_mode()
