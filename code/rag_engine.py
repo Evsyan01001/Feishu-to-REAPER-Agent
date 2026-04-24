@@ -47,17 +47,14 @@ class RAGEngine:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_dir = os.path.join(current_dir, "..", "data")
         self.vector_db_dir = os.path.join(current_dir, "..", "vector_db")
-        self.embeddings = None
-        self.vectorstore = None
-        self.glossary = {}  # 音频术语表
-        self.parameters = {}  # 音频参数库
-
+        self.embeddings: Optional[Any] = None
+        self.vectorstore: Optional[Any] = None
+        
         # if not HAS_DEPS:
         #     raise ImportError("缺少必要依赖：pip install langchain-community chromadb sentence-transformers pypdf")
 
         self._init_embeddings()
-        self._load_glossary()  # 加载术语表
-        self._load_parameters()  # 加载参数库
+        
 
         # 自动初始化：如果库存在就加载，不存在就尝试构建
         if os.path.exists(self.vector_db_dir) and os.listdir(self.vector_db_dir):
@@ -103,18 +100,7 @@ class RAGEngine:
         Returns:
             根据 return_format 返回对应格式的结果
         """
-        # 第一步：检查术语表
-        glossary_result = self._search_glossary(query)
-        if glossary_result:
-            structured_result = {
-                "answer": f"{glossary_result.get('term')}: {glossary_result.get('definition', '')}",
-                "confidence": 0.95,  # 术语表匹配置信度很高
-                "sources": [{"file": "audio_glossary.json", "score": 0.95}],
-                "type": "concept",
-                "timestamp": self._get_timestamp(),
-                "version": "1.0"
-            }
-            return self._format_result(structured_result, return_format)
+
 
         if not self.vectorstore:
             structured_result = {
@@ -205,192 +191,7 @@ class RAGEngine:
             return self._format_result(structured_result, return_format)
 
     # --- 辅助方法 ---
-    def _load_glossary(self):
-        """加载音频术语表"""
-        glossary_path = os.path.join(self.data_dir, "audio_glossary.json")
-        try:
-            if os.path.exists(glossary_path):
-                with open(glossary_path, 'r', encoding='utf-8') as f:
-                    self.glossary = json.load(f)
-                print(f"✅ 已加载音频术语表，包含 {len(self.glossary)} 个术语")
-            else:
-                print("⚠ 未找到音频术语表，创建示例文件...")
-                self.glossary = self._create_sample_glossary()
-        except Exception as e:
-            print(f"加载术语表失败: {e}")
-            self.glossary = {}
 
-    def _load_parameters(self):
-        """加载音频参数库"""
-        params_path = os.path.join(self.data_dir, "audio_parameters.json")
-        try:
-            if os.path.exists(params_path):
-                with open(params_path, 'r', encoding='utf-8') as f:
-                    self.parameters = json.load(f)
-                print(f"✅ 已加载音频参数库")
-            else:
-                print("⚠ 未找到音频参数库，将使用默认参数搜索")
-                self.parameters = {}
-        except Exception as e:
-            print(f"加载参数库失败: {e}")
-            self.parameters = {}
-
-    def _create_sample_glossary(self) -> Dict[str, Any]:
-        """创建示例术语表"""
-        return {
-            "ADSR": {
-                "term": "ADSR",
-                "definition": "包络生成器的四个阶段：启动、衰减、持续、释放。"
-            },
-            "EQ": {
-                "term": "EQ",
-                "definition": "均衡器，调整音频频率平衡的工具。"
-            }
-        }
-
-    def _search_glossary(self, query: str) -> Optional[Dict[str, Any]]:
-        """在术语表中搜索术语"""
-        query_lower = query.lower().strip()
-
-        # 直接匹配术语
-        for term, info in self.glossary.items():
-            if term.lower() in query_lower:
-                return info
-
-        # 检查查询中是否包含"什么是"、"定义"等关键词
-        definition_keywords = ["什么是", "定义", "解释", "meaning", "definition"]
-        if any(kw in query_lower for kw in definition_keywords):
-            # 提取可能的术语
-            for term in self.glossary.keys():
-                if term.lower() in query_lower:
-                    return self.glossary[term]
-
-        return None
-
-    def _search_parameters(self, query: str) -> Optional[Dict[str, Any]]:
-        """在参数库中搜索参数设置"""
-        if not self.parameters:
-            return None
-
-        query_lower = query.lower().strip()
-
-        # 搜索关键词映射
-        param_keywords = {
-            "压缩": ["compressor", "压缩", "compress", "压缩器", "压缩设置"],
-            "均衡": ["eq", "均衡", "equalizer", "均衡器", "频率"],
-            "混响": ["reverb", "混响", "reverberation", "空间"],
-            "齿音": ["deesser", "de-esser", "齿音", "sibilance"],
-            "限制": ["limiter", "限制", "限制器", "limiting"],
-            "人声": ["vocal", "人声", "唱歌", "voice", "vox"],
-            "鼓": ["drum", "鼓", "kick", "snare", "打击乐"],
-            "吉他": ["guitar", "吉他", "guitarra", "guitare"]
-        }
-
-        # 检查查询中的关键词
-        matched_categories = []
-        for category, keywords in param_keywords.items():
-            if any(keyword in query_lower for keyword in keywords):
-                matched_categories.append(category)
-
-        if not matched_categories:
-            return None
-
-        # 搜索参数库
-        results = []
-
-        # 搜索压缩器设置
-        if "压缩" in matched_categories:
-            for comp in self.parameters.get("compressor_settings", []):
-                # 检查场景匹配
-                scenario = comp.get("scenario", "")
-                name = comp.get("name", "")
-                if any(keyword in query_lower for keyword in ["人声", "vocal", "voice"]) and "vocal" in scenario:
-                    results.append({
-                        "type": "compressor",
-                        "data": comp,
-                        "match": "vocal_compression"
-                    })
-                elif any(keyword in query_lower for keyword in ["鼓", "drum", "kick"]) and "drum" in scenario:
-                    results.append({
-                        "type": "compressor",
-                        "data": comp,
-                        "match": "drum_compression"
-                    })
-                elif "master" in scenario.lower() or "总线" in name:
-                    results.append({
-                        "type": "compressor",
-                        "data": comp,
-                        "match": "master_compression"
-                    })
-
-        # 搜索均衡器设置
-        if "均衡" in matched_categories:
-            for eq in self.parameters.get("eq_settings", []):
-                instrument = eq.get("instrument", "")
-                name = eq.get("name", "")
-                if any(keyword in query_lower for keyword in ["人声", "vocal", "男声", "女声"]) and "vocal" in instrument:
-                    results.append({
-                        "type": "eq",
-                        "data": eq,
-                        "match": "vocal_eq"
-                    })
-                elif any(keyword in query_lower for keyword in ["吉他", "guitar"]) and "guitar" in instrument:
-                    results.append({
-                        "type": "eq",
-                        "data": eq,
-                        "match": "guitar_eq"
-                    })
-                elif any(keyword in query_lower for keyword in ["鼓", "kick", "底鼓"]) and "drum" in instrument:
-                    results.append({
-                        "type": "eq",
-                        "data": eq,
-                        "match": "drum_eq"
-                    })
-
-        # 搜索混响设置
-        if "混响" in matched_categories:
-            for reverb in self.parameters.get("reverb_settings", []):
-                reverb_type = reverb.get("type", "")
-                name = reverb.get("name", "")
-                if any(keyword in query_lower for keyword in ["人声", "vocal"]) and "plate" in reverb_type:
-                    results.append({
-                        "type": "reverb",
-                        "data": reverb,
-                        "match": "vocal_reverb"
-                    })
-                elif any(keyword in query_lower for keyword in ["大厅", "hall", "大空间"]) and "hall" in reverb_type:
-                    results.append({
-                        "type": "reverb",
-                        "data": reverb,
-                        "match": "hall_reverb"
-                    })
-
-        # 搜索动态处理器
-        if "齿音" in matched_categories:
-            for processor in self.parameters.get("dynamic_processors", []):
-                processor_type = processor.get("type", "")
-                if "deesser" in processor_type:
-                    results.append({
-                        "type": "deesser",
-                        "data": processor,
-                        "match": "deesser"
-                    })
-
-        if "限制" in matched_categories:
-            for processor in self.parameters.get("dynamic_processors", []):
-                processor_type = processor.get("type", "")
-                if "limiter" in processor_type:
-                    results.append({
-                        "type": "limiter",
-                        "data": processor,
-                        "match": "limiter"
-                    })
-
-        if results:
-            # 返回最佳匹配
-            return results[0]
-
-        return None
 
     def _get_timestamp(self) -> str:
         """获取当前时间戳"""
@@ -413,7 +214,7 @@ class RAGEngine:
         else:
             return "general"
 
-    def _format_result(self, structured_result: dict, return_format: str) -> dict:
+    def _format_result(self, structured_result: dict, return_format: str) -> Any:
         """
         根据return_format格式化结果
 
@@ -628,6 +429,6 @@ class RAGEngine:
 if __name__ == "__main__":
     rag = RAGEngine()
     # 模拟队友 A 的调用方式
-    context = rag.ask_question("如何进行降噪处理？") 
+    context = rag.search("如何进行降噪处理？", return_format="text") 
     print("--- 检索到的背景知识 ---")
     print(context)
