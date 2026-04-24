@@ -7,14 +7,17 @@ import os
 import json
 import logging
 import types
-from typing import Dict, Any, Optional, Generator
+from typing import Dict, Any, Optional, Generator, TYPE_CHECKING
 from dotenv import load_dotenv
 import requests
+
+if TYPE_CHECKING:
+    from rag_engine import RAGEngine
 
 load_dotenv()
 
 class PromptManager:
-    def __init__(self, file_path="instructions.md"):
+    def __init__(self, file_path="custom_rules.md"):
         self.file_path = os.path.join(os.path.dirname(__file__), "..", file_path)
         # 初始化时直接一个最基础的，不读文件，确保启动最快
         self._cached_prompt = "你是一个专业的游戏音频设计师。"
@@ -67,7 +70,7 @@ from conversation import ConversationManager
 # ─────────────────────────────────────────────────────────────────────────────
 
 class DeepSeekAPI:
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key  = api_key or os.getenv("DEEPSEEK_API_KEY")
         self.base_url = "https://api.deepseek.com/v1"
         self.model    = os.getenv("MODEL_NAME", "deepseek-chat")
@@ -142,9 +145,9 @@ class FeishuAgent:
     def __init__(self):
         self.app_id     = os.getenv("FEISHU_APP_ID")
         self.app_secret = os.getenv("FEISHU_APP_SECRET")
-        self.rag        = None
+        self.rag: "Optional[RAGEngine]" = None
         self.deepseek   = None
-        self.reaper_controller = True  # REAPER控制器
+        self.reaper_controller: Optional[Any] = None  # REAPER控制器
 
         # [CONV] 多轮对话管理器
         self.conv_manager = ConversationManager(
@@ -253,7 +256,7 @@ class FeishuAgent:
                 SYSTEM_PROMPT = prompt_manager.get_prompt()
                 return {"answer": "✅ 系统指令已刷新！现在我已加载最新的 instructions.md 逻辑。", "source": "System"}
             else:
-                return {"answer": "❌ 刷新失败，请检查 instructions.md 是否存在。", "source": "System"}
+                return {"answer": "❌ 刷新失败，请检查 custom_rules.md 是否存在。", "source": "System"}
             
 
         # ── [CONV-1] 检查重置指令 ────────────────────────────────────────────
