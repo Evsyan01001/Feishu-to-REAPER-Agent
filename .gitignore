@@ -50,6 +50,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+ARCHITECTURE.md
 
 # Vector database
 vector_db/
@@ -66,3 +67,6 @@ test/
 
 # Claude
 .claude/
+.trae_context.md
+current_progress.md
+custom_rules.md

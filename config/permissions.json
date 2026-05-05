@@ -1,0 +1,17 @@
+{
+  "whitelist_operations": [],
+  "deny_operations": [
+    "rm -rf",
+    "sudo",
+    "format",
+    "mkfs",
+    "dd if=",
+    "chmod 777 /",
+    "shutdown",
+    "reboot",
+    "删除所有轨道",
+    "清空工程",
+    "rm *.rpp",
+    "删除工程文件"
+  ]
+}
